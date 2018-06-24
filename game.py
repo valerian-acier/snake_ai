@@ -79,18 +79,18 @@ class Game:
 
             cmp += 1
             if cmp > 50:
-                return score
+                return score + ((tmp[0] - self.apple[0]) + (tmp[1]-self.apple[1]))
 
 
             if (tmp[0] < 0 or tmp[0] >= nbCellsWidth) or tmp[1] < 0 or tmp[1] >= nbCellsHeight:
-                return score
+                return score - ((self.snake[-1][0] - self.apple[0]) + (self.snake[-1][1]-self.apple[1]))
 
             for x, y, v in self.snake:
                 if x == tmp[0] and y == tmp[1]:
-                    return score
+                    return score - ((self.snake[-1][0] - self.apple[0]) + (self.snake[-1][1]-self.apple[1]))
 
             if tmp[2] >= nbCellsHeight * nbCellsWidth:
-                return score
+                return score - ((self.snake[-1][0] - self.apple[0]) + (self.snake[-1][1]-self.apple[1]))
 
             self.snake.append(tmp)
             score += 1
@@ -166,6 +166,26 @@ class NeuralNet:
                     else:
                         self.weights[layer][neurone][synapse] = mother.weights[layer][neurone][synapse]
 
+        '''for layer in range(len(self.weights)):
+            for neurone in range(len(self.weights[layer])):
+                p1 = father.weights
+                p2 = mother.weights
+                if random.randint(0, 1):
+                    p1 = mother.weights
+                    p2 = father.weights
+                point = random.randint(0, len(self.weights[layer][neurone])-1)
+                for synapse in range(len(self.weights[layer][neurone])):
+                    if synapse < point:
+                        self.weights[layer][neurone][synapse] = p1[layer][neurone][synapse]
+                    else:
+                        self.weights[layer][neurone][synapse] = p2[layer][neurone][synapse]'''
+    def mutate(self, mutationRate):
+        for layer in range(len(self.weights)):
+            for neurone in range(len(self.weights[layer])):
+                for synapse in range(len(self.weights[layer][neurone])):
+                    if random.uniform(0, 1) < mutationRate:
+                        self.weights[layer][neurone][synapse] *= 1 + ((random.uniform(0,1) - 0.5) * 3 + (random.uniform(0,1) - 0.5))
+
     def get(self, data):
         # Propagate the input to the output to calculate the result of the neural network
         inData = data + [1]  # bias
@@ -185,7 +205,7 @@ class NeuralNetAgent:
     def __init__(self):
         global nbCellsHeight
         global nbCellsWidth
-        self.neural = NeuralNet(nbCellsWidth*nbCellsHeight, 4, 10, 1, 1)
+        self.neural = NeuralNet(nbCellsWidth*nbCellsHeight, 4, 40, 2, 1)
 
     def getPlay(self, game):
         global nbCellsWidth
@@ -195,6 +215,9 @@ class NeuralNetAgent:
             inData[x + y*nbCellsWidth] = v
         inData[game.apple[0] + game.apple[1]*nbCellsWidth] = -1
 
+        #if game.render:
+        #    print(inData)
+
         r = self.neural.get(inData)
 
         directions = [UP, RIGHT, DOWN, LEFT]
@@ -202,13 +225,17 @@ class NeuralNetAgent:
         pygame.event.get()
         return directions[i]
 
+    def mutate(self, mutationRate):
+        self.neural.mutate(mutationRate)
+
+
     def cross(self, father, mother):
         self.neural.cross(father.neural, mother.neural)
 
 
 def geneticAlgorithm(nbSpecimen):
     agents = [[NeuralNetAgent(), -1] for i in range(nbSpecimen)]
-    for x in range(1000):
+    for x in range(10000):
         currentSeed = 1
         for a in range(len(agents)):
             r = random.Random()
@@ -219,17 +246,29 @@ def geneticAlgorithm(nbSpecimen):
         agents = sorted(agents, key=lambda x: x[1], reverse=True)
         print("Best score : ", agents[0][1])
         print("Worst score : ", agents[-1][1])
-        for i in range(10, len(agents)):
-            father, mother = random.sample(agents[:10], 2)
+        print(list(map(lambda k: k[1], agents)))
+        elites = 300
+        elimined = 100
+        if agents[0][1] <= 0:
+            agents = [[NeuralNetAgent(), -1] for i in range(nbSpecimen)]
+            continue
+
+        for i in range(elites, len(agents)-elimined):
+            father, mother = random.sample(agents[:elites], 2)
             agents[i][0].cross(father[0], mother[0])
+            agents[i][0].mutate(0.1)
             agents[i][1] = -1
+
+
+        for i in range(len(agents)-elimined, len(agents)):
+            agents[i] = [NeuralNetAgent(), -1]
 
         r = random.Random()
         r.seed(currentSeed)
         game = Game(True, r)
         game.play(agents[0][0])
 
-geneticAlgorithm(100)
+geneticAlgorithm(1000)
 
 
 
